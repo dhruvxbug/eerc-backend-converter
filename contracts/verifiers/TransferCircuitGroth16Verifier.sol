@@ -389,7 +389,7 @@ contract TransferCircuitGroth16Verifier {
             verified_ := and(verified_, checkField(mload(add(publicSignals_, 992))))
             
             /// @dev check pairings
-            if not(iszero(verified_)) {
+            if verified_ {
                 verified_ := checkPairing(pointA_, pointB_, pointC_, publicSignals_, pointer_)
             }
         }

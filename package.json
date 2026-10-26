@@ -21,7 +21,16 @@
 	"standalone:mint": "npx hardhat run scripts/standalone/05_mint.ts --network fuji",
 	"standalone:balance": "npx hardhat run scripts/standalone/06_check-balance.ts --network fuji",
 	"standalone:transfer": "npx hardhat run scripts/standalone/07_transfer.ts --network fuji",
-	"standalone:burn": "npx hardhat run scripts/standalone/08_burn.ts --network fuji"
+	"standalone:burn": "npx hardhat run scripts/standalone/08_burn.ts --network fuji",
+	"l1:verify": "npx hardhat run scripts/verify-e2e.ts --network jurisdictionChain",
+	"l1:init": "npx hardhat run scripts/standalone/01_deploy-basics.ts --network jurisdictionChain",
+	"l1:core": "npx hardhat run scripts/standalone/02_deploy-standalone.ts --network jurisdictionChain",
+	"l1:register": "npx hardhat run scripts/standalone/03_register-user.ts --network jurisdictionChain",
+	"l1:auditor": "npx hardhat run scripts/standalone/04_set-auditor.ts --network jurisdictionChain",
+	"l1:mint": "npx hardhat run scripts/standalone/05_mint.ts --network jurisdictionChain",
+	"l1:balance": "npx hardhat run scripts/standalone/06_check-balance.ts --network jurisdictionChain",
+	"l1:transfer": "npx hardhat run scripts/standalone/07_transfer.ts --network jurisdictionChain",
+	"l1:burn": "npx hardhat run scripts/standalone/08_burn.ts --network jurisdictionChain"
   },
   "author": "",
   "license": "ISC",
@@ -43,6 +52,8 @@
 	"prettier": "^3.5.3",
 	"prettier-plugin-solidity": "^1.4.2",
 	"solhint": "^5.0.5",
-	"solidity-coverage": "^0.8.14"
+	"solidity-coverage": "^0.8.14",
+	"ts-node": "^10.9.2",
+	"typescript": "~5.5.4"
   }
 }

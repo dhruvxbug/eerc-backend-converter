@@ -318,6 +318,18 @@ export function createUserFromPrivateKey(privateKey: bigint, signer: any): User 
 }
 
 /**
+ * Returns the name of the network the script is currently running against.
+ *
+ * Deployment records previously hardcoded "fuji", which mislabelled
+ * deployments to any other network. The Local Jurisdiction-Aware Chain is
+ * reported as "jurisdictionChain".
+ */
+export async function currentNetworkName(): Promise<string> {
+    const network = await ethers.provider.getNetwork();
+    return network.name === "unknown" ? `unknown-${network.chainId}` : network.name;
+}
+
+/**
  * Gets a wallet based on the wallet number parameter
  * @param walletNumber 1 for first signer, 2 for second signer, etc.
  * @returns The selected wallet signer

@@ -6,10 +6,10 @@ import type { RegistrationCircuit } from "../../generated-types/zkit";
 import { getWallet, deriveKeysFromUser } from "../../src/utils";
 
 const main = async () => {
-    // Configure which wallet to use: 1 for first signer, 2 for second signer
-    // Can be overridden with environment variable: WALLET_NUMBER=1 or WALLET_NUMBER=2
-    const WALLET_NUMBER = 1;
-    
+    // Which signer to register. Wallet 1 is normally the contract owner and
+    // wallet 2 the auditor; set WALLET_NUMBER=2 to register the auditor.
+    const WALLET_NUMBER = parseInt(process.env.WALLET_NUMBER || "1", 10);
+
     const wallet = await getWallet(WALLET_NUMBER);
     const userAddress = await wallet.getAddress();
     
@@ -147,7 +147,7 @@ const main = async () => {
             fs.mkdirSync(outputDir, { recursive: true });
         }
         
-        const keysPath = path.join(outputDir, "user-keys.json");
+        const keysPath = path.join(outputDir, `user-keys-w${WALLET_NUMBER}.json`);
         fs.writeFileSync(keysPath, JSON.stringify(userKeys, null, 2));
         console.log("🔑 User keys saved to:", keysPath);
         

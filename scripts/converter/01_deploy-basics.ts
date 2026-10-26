@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { deployLibrary, deployVerifiers } from "../../test/helpers";
 import { DECIMALS } from "../constants";
-import { saveDeploymentData } from "../../src/utils";
+import { saveDeploymentData, currentNetworkName } from "../../src/utils";
 
 const main = async () => {
 	// get deployer
@@ -34,7 +34,7 @@ const main = async () => {
 
 	// Create deployment data object
 	const deploymentData = {
-		network: "fuji",
+		network: await currentNetworkName(),
 		deployer: deployer.address,
 		deploymentTimestamp: new Date().toISOString(),
 		contracts: {

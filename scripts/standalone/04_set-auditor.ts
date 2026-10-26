@@ -1,38 +1,53 @@
-import { EncryptedERC__factory } from "../../typechain-types";
+import { EncryptedERC__factory, Registrar__factory } from "../../typechain-types";
 import * as fs from "fs";
 import * as path from "path";
 import { getWallet } from "../../src/utils";
 
 const main = async () => {
-    // Configure which wallet to use: 1 for first signer, 2 for second signer
-    // Can be overridden with environment variable: WALLET_NUMBER=1 or WALLET_NUMBER=2
-    const WALLET_NUMBER = 1;
-    
-    const deployer = await getWallet(WALLET_NUMBER);
-    
+    // Wallet 1 is the contract owner. The auditor is normally wallet 2, which
+    // keeps the auditor key separate from the owner's.
+    const WALLET_NUMBER = parseInt(process.env.WALLET_NUMBER || "2", 10);
+
+    const deployer = await getWallet(1);
+    const auditorWallet = await getWallet(WALLET_NUMBER);
+    const auditorAddress = await auditorWallet.getAddress();
+
     // Read addresses from the latest standalone deployment
     const deploymentPath = path.join(__dirname, "../../deployments/standalone/latest-standalone.json");
     const deploymentData = JSON.parse(fs.readFileSync(deploymentPath, "utf8"));
 
     const eERCAddress = deploymentData.contracts.encryptedERC;
-    const auditorPublicKeyAddress = "0x38332d73dC01548fC6710Acbbe8116516111781A" as any;
 
     const encryptedERC = await EncryptedERC__factory.connect(eERCAddress, deployer);
     let auditor: any;
     try {
         console.log("🔧 Setting auditor for standalone EncryptedERC...");
         console.log("EncryptedERC Address:", eERCAddress);
-        console.log("Auditor Address:", auditorPublicKeyAddress);
-        
-        auditor = await encryptedERC.setAuditorPublicKey(auditorPublicKeyAddress);
+        console.log("Auditor Address:", auditorAddress);
+
+        // setAuditorPublicKey is onlyOwner onlyIfUserRegistered, so the auditor
+        // must be registered in the Registrar first. Fail with a clear hint
+        // rather than an opaque "execution reverted".
+        const registrarAddress = deploymentData.contracts.registrar;
+        const registrar = await Registrar__factory.connect(registrarAddress, deployer);
+        const isRegistered = await registrar.isUserRegistered(auditorAddress);
+        if (!isRegistered) {
+            console.error(`❌ Auditor ${auditorAddress} is not registered.`);
+            console.error("   Run the registration step for this wallet first:");
+            console.error(`   WALLET_NUMBER=${WALLET_NUMBER} npx hardhat run scripts/standalone/03_register-user.ts --network <network>`);
+            process.exitCode = 1;
+            return;
+        }
+
+        auditor = await encryptedERC.setAuditorPublicKey(auditorAddress);
         const receipt = await auditor.wait();
         console.log("Transaction confirmed in block:", receipt?.blockNumber);
-     
-         const auditorAddress = await encryptedERC.auditor();
+
+         const onChainAuditor = await encryptedERC.auditor();
          const auditorPublicKey = await encryptedERC.auditorPublicKey();
-         
+
          console.log("✅ Auditor successfully configured for standalone mode");
-         console.log("Auditor address:", auditorAddress);
+         console.log("Auditor address:", onChainAuditor);
          console.log("Auditor public key X:", auditorPublicKey.x.toString());
          console.log("Auditor public key Y:", auditorPublicKey.y.toString());
          

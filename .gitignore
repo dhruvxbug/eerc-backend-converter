@@ -19,4 +19,4 @@ ignition/deployments/chain-31337
 temp-register-proof.json
 temp-register-inputs.json
 /deployments
-/generated-types
+/generated-types.DS_Store

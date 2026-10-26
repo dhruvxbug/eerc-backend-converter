@@ -1,7 +1,7 @@
 import { ethers } from "hardhat";
 import { EncryptedERC__factory } from "../../typechain-types";
 import { DECIMALS } from "../constants";
-import { saveDeploymentData } from "../../src/utils";
+import { saveDeploymentData, currentNetworkName } from "../../src/utils";
 import * as fs from "fs";
 import * as path from "path";
 
@@ -48,7 +48,7 @@ const main = async () => {
 
 	// Create deployment data object
 	const deploymentData = {
-		network: "fuji",
+		network: await currentNetworkName(),
 		deployer: deployer.address,
 		deploymentTimestamp: new Date().toISOString(),
 		contracts: {

@@ -1,0 +1,35 @@
+{
+  "chainId": "99999",
+  "timestamp": "2026-09-30T09:01:59.887Z",
+  "results": {
+    "registration": {
+      "allowlist_grant_ms": 605.06,
+      "client_proof_gen_ms": 2966.67,
+      "client_calldata_ms": 0.45,
+      "submit_ms": 532.55,
+      "gas_total": "321889",
+      "verifier_gas": 248279,
+      "verifier_address": "0x66B85C918258082F6e91281F24A979030aaDeA5c"
+    },
+    "private_mint": {
+      "client_proof_gen_ms": 4850.3,
+      "submit_ms": 511.54,
+      "gas_total": "729404",
+      "verifier_gas": 386067,
+      "amount_wei": "10000",
+      "balance_delta_wei": "10000"
+    },
+    "private_transfer": {
+      "client_proof_gen_ms": 5393.34,
+      "submit_ms": 511.64,
+      "gas_total": "943112",
+      "verifier_gas": 444611,
+      "amount_wei": "2500",
+      "sender_delta_wei": "-2500",
+      "receiver_delta_wei": "2500"
+    },
+    "plain_transfer_baseline": {
+      "gas_total": "21000"
+    }
+  }
+}
