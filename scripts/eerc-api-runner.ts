@@ -20,10 +20,24 @@ const ROLES: Record<string, string> = {
   "3": "Manager",
 };
 
+async function safeReadAllowList(allowlist: any, addr: string): Promise<number> {
+  try {
+    return Number(await allowlist.readAllowList(addr));
+  } catch {
+    return 1;
+  }
+}
+
 async function loadUser(walletNumber: number) {
   const wallet = await getWallet(walletNumber);
   const address = await wallet.getAddress();
-  const keyFile = path.join(__dirname, `../deployments/standalone/user-keys-w${walletNumber}.json`);
+  const net = await ethers.provider.getNetwork();
+  const isL1 = Number(net.chainId) === 99999;
+  const suffix = isL1 ? ".l1.json" : ".fuji.json";
+  const suffixedKey = path.join(__dirname, `../deployments/standalone/user-keys-w${walletNumber}${suffix}`);
+  const keyFile = fs.existsSync(suffixedKey)
+    ? suffixedKey
+    : path.join(__dirname, `../deployments/standalone/user-keys-w${walletNumber}.json`);
   if (fs.existsSync(keyFile)) {
     const saved = JSON.parse(fs.readFileSync(keyFile, "utf8"));
     return {
@@ -77,13 +91,46 @@ function egctToFlat(result: unknown): bigint[] {
   return [egct.c1.x, egct.c1.y, egct.c2.x, egct.c2.y];
 }
 
+function getHistoryFile(isL1: boolean): string {
+  return path.join(__dirname, `../deployments/standalone/tx-history.${isL1 ? "l1" : "fuji"}.json`);
+}
+
+function loadHistory(isL1: boolean): any[] {
+  const filePath = getHistoryFile(isL1);
+  if (fs.existsSync(filePath)) {
+    try {
+      return JSON.parse(fs.readFileSync(filePath, "utf8"));
+    } catch {}
+  }
+  return [];
+}
+
+function saveTx(record: any, isL1: boolean) {
+  const history = loadHistory(isL1);
+  history.unshift(record);
+  const trimmed = history.slice(0, 100);
+  try {
+    fs.writeFileSync(getHistoryFile(isL1), JSON.stringify(trimmed, null, 2));
+  } catch (e) {
+    console.error("Failed to write tx history:", e);
+  }
+}
+
 async function main() {
   const action = process.env.EERC_ACTION || "status";
   const arg1 = process.env.EERC_ARG1 || "";
   const arg2 = process.env.EERC_ARG2 || "";
   const arg3 = process.env.EERC_ARG3 || "";
 
-  const deploymentPath = path.join(__dirname, "../deployments/standalone/latest-standalone.json");
+  const network = await ethers.provider.getNetwork();
+  const isL1 = Number(network.chainId) === 99999;
+  const suffixedDeployment = path.join(
+    __dirname,
+    `../deployments/standalone/latest-standalone.${isL1 ? "l1" : "fuji"}.json`
+  );
+  const deploymentPath = fs.existsSync(suffixedDeployment)
+    ? suffixedDeployment
+    : path.join(__dirname, "../deployments/standalone/latest-standalone.json");
   if (!fs.existsSync(deploymentPath)) {
     throw new Error("No standalone deployment found. Deploy contracts first.");
   }
@@ -102,15 +149,19 @@ async function main() {
     const output = {
       success: true,
       network: {
-        name: "Jurisdiction-Aware L1 (NexusAvalanche)",
+        name: isL1 ? "Jurisdiction-Aware Sovereign L1 (NexusChain)" : "Avalanche Fuji C-Chain Testnet",
         chainId: Number(network.chainId),
         blockNumber,
-        rpcUrl: process.env.L1_RPC_URL || "http://127.0.0.1:9654",
+        rpcUrl: isL1 ? (process.env.L1_RPC_URL || "http://127.0.0.1:9654") : "https://api.avax-test.network/ext/bc/C/rpc",
+        networkKey: isL1 ? "l1" : "fuji",
+        isL1,
+        nativeToken: isL1 ? "JUR" : "AVAX",
+        explorerBaseUrl: isL1 ? null : "https://explorer-test.avax.network",
       },
       contracts: {
         encryptedERC: deployment.contracts.encryptedERC,
         registrar: deployment.contracts.registrar,
-        txAllowListPrecompile: TX_ALLOWLIST,
+        txAllowListPrecompile: isL1 ? TX_ALLOWLIST : null,
         registrationVerifier: deployment.contracts.registrationVerifier,
         mintVerifier: deployment.contracts.mintVerifier,
         transferVerifier: deployment.contracts.transferVerifier,
@@ -160,7 +211,7 @@ async function main() {
     }
 
     const isRegistered = await registrar.isUserRegistered(address);
-    const roleNum = Number(await allowlist.readAllowList(address));
+    const roleNum = await safeReadAllowList(allowlist, address);
     const rawBalance = await eERC.balanceOfStandalone(address);
 
     const [eGCT, nonce, amountPCTs, balancePCT, transactionIndex] = rawBalance as any;
@@ -254,6 +305,32 @@ async function main() {
       proofVerification: "Groth16 Pairing Verified On-Chain",
       privacyNotice: "Transaction amount is encrypted on-chain. Decryptable only by sender, receiver, and authorized auditor.",
     };
+
+    saveTx({
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      timestamp: Math.floor(Date.now() / 1000),
+      operation: "PrivateTransfer",
+      sender: senderUser.address,
+      toContract: deployment.contracts.encryptedERC,
+      recipient: receiverAddress,
+      amount: amountFloat.toString(),
+      tokenSymbol: "PRIV",
+      gasUsed: receipt.gasUsed.toString(),
+      proofVerification: "Groth16 Pairing Verified On-Chain",
+      isPrivate: true,
+      network: isL1 ? "jurisdictionChain" : "fuji",
+      chainId: Number(network.chainId),
+      onChainVisibility: {
+        sender: senderUser.address,
+        contract: `${deployment.contracts.encryptedERC} (EncryptedERC)`,
+        value: isL1 ? "0 JUR" : "0 AVAX",
+        plaintextRecipient: "🔒 HIDDEN / ZERO-KNOWLEDGE (Curve Point)",
+        plaintextAmount: "🔒 CONFIDENTIAL (ElGamal Ciphertext C1, C2)",
+        proofPointsVerified: "Groth16 [A, B, C] Pairing Verified"
+      }
+    }, isL1);
+
     console.log(JSON.stringify(output));
     return;
   }
@@ -285,13 +362,39 @@ async function main() {
       amountMinted: amountFloat.toString(),
       proofVerification: "Groth16 Mint Proof Verified On-Chain",
     };
+
+    saveTx({
+      txHash: receipt.hash,
+      blockNumber: receipt.blockNumber,
+      timestamp: Math.floor(Date.now() / 1000),
+      operation: "PrivateMint",
+      sender: owner.address,
+      toContract: deployment.contracts.encryptedERC,
+      recipient,
+      amount: amountFloat.toString(),
+      tokenSymbol: "PRIV",
+      gasUsed: receipt.gasUsed.toString(),
+      proofVerification: "Groth16 Mint Proof Verified On-Chain",
+      isPrivate: true,
+      network: isL1 ? "jurisdictionChain" : "fuji",
+      chainId: Number(network.chainId),
+      onChainVisibility: {
+        sender: `${owner.address} (Owner)`,
+        contract: `${deployment.contracts.encryptedERC} (EncryptedERC)`,
+        value: isL1 ? "0 JUR" : "0 AVAX",
+        plaintextRecipient: "🔒 REGISTERED KEY HASH",
+        plaintextAmount: "🔒 CONFIDENTIAL (Groth16 Mint Ciphertext)",
+        proofPointsVerified: "Groth16 [A, B, C] Pairing Verified"
+      }
+    }, isL1);
+
     console.log(JSON.stringify(output));
     return;
   }
 
   if (action === "allowlist-role") {
     const target = arg1;
-    const role = Number(await allowlist.readAllowList(target));
+    const role = await safeReadAllowList(allowlist, target);
     console.log(
       JSON.stringify({
         success: true,
@@ -299,6 +402,20 @@ async function main() {
         role,
         roleName: ROLES[String(role)] || "Unknown",
         isPermitted: role > 0,
+      })
+    );
+    return;
+  }
+
+  if (action === "transactions") {
+    const history = loadHistory(isL1);
+    console.log(
+      JSON.stringify({
+        success: true,
+        network: isL1 ? "jurisdictionChain" : "fuji",
+        chainId: Number(network.chainId),
+        contractAddress: deployment.contracts.encryptedERC,
+        transactions: history,
       })
     );
     return;
